@@ -3,6 +3,7 @@ import { writeFileSync } from "fs";
 import _ from "lodash";
 import querystring from "querystring";
 import stats from "wink-statistics";
+import { getSegmentoTicker } from "./scraping/statusInvest.js";
 
 let startDate = "2021-03-01";
 let endDate = "2022-04-26";
@@ -84,12 +85,16 @@ for (const fundo in fundos) {
       // valor rendimento mensal baseado na media
       let rendimentoMensal = Math.floor(qtdQuota * vlrMedioRendimentoAbsoluto);
 
+      // realiza o scraping para capturar os dados do segmento do ativo
+      let segmento = await getSegmentoTicker(fundo);
+
       ticker.push({
         code: fundo,
         qtdQuotaNecessaria: qtdQuota,
         precoQuota: precoQuota,
         rendimentoMensal: rendimentoMensal,
         valorMinimoAceitavel: valorMinimoAceitavel,
+        ...segmento,
       });
     }
   }

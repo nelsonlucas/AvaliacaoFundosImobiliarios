@@ -12,6 +12,7 @@
   "dependencies": {
     "axios": "^0.26.1",
     "lodash": "^4.17.21",
+    "puppeteer": "^13.5.1",
     "wink-statistics": "^2.1.1"
   },
   "type": "module"
