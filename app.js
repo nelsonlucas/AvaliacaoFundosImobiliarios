@@ -56,7 +56,7 @@ for (const fundo in fundos) {
   );
 
   // so ira calcular se existir no minimo 12 meses de pagamento
-  if (fundos[fundo].length >= 12) {
+  if (fundos[fundo].length >= 12 && result?.data?.[0]?.prices.length > 0) {
     //
 
     // array tratado e com determinaods valores convertidos
@@ -69,18 +69,37 @@ for (const fundo in fundos) {
     });
 
     //   recupera sempre o ultimo preco salvo
-    let precoQuota = result?.data?.[0]?.prices?.[0]?.price;
+    // let precoQuota = result?.data?.[0]?.prices?.[0]?.price;
+    let precoMedioQuota = parseFloat(
+      parseFloat(stats.data.mean(result.data?.[0]?.prices, "price")).toFixed(2)
+    );
 
-    if (precoQuota) {
+    if (precoMedioQuota) {
+      //
+
       // recebe o valor do preco medio
-      let vlrMedioRendimentoAbsoluto = stats.data.median(
-        fundoTratado,
-        "resultAbsoluteValue"
+      let vlrMedioRendimentoAbsoluto = parseFloat(
+        parseFloat(
+          stats.data.mean(fundoTratado, "resultAbsoluteValue")
+        ).toFixed(2)
       );
-      let valorMedioDY = stats.data.median(fundoTratado, "dy");
+
+      let valorMedioDY = parseFloat(
+        parseFloat(stats.data.mean(fundoTratado, "dy")).toFixed(2)
+      );
 
       // Calcular qtd de quotas e possivel adquirir com o saldo bancario. O arredondamento sera sempre para BAIXO
-      let qtdQuota = Math.floor(saldoInvestimento / precoQuota);
+      let qtdQuota = Math.floor(saldoInvestimento / precoMedioQuota);
+
+      // calcula o preco justo por Acao de acordo com o DY medio
+      let precoMedioJustoPorQuota = Math.floor(
+        precoMedioQuota - valorMedioDY / 100
+      );
+
+      // calculo de percentual de preco justo com relacao ao preco atual
+      let variacaoPercentualPrecoJustoPorPrecoAtual = parseFloat(
+        (precoMedioQuota - precoMedioJustoPorQuota).toFixed(2)
+      );
 
       // valor rendimento mensal baseado na media
       let rendimentoMensal = Math.floor(qtdQuota * vlrMedioRendimentoAbsoluto);
@@ -89,9 +108,15 @@ for (const fundo in fundos) {
       let segmento = await getSegmentoTicker(fundo);
 
       ticker.push({
+        detalhesFundamentalistas: {
+          valorMedioDY: valorMedioDY,
+          precoMedioJustoPorQuota: precoMedioJustoPorQuota,
+          variacaoPercentualPrecoJustoPorPrecoAtual:
+            variacaoPercentualPrecoJustoPorPrecoAtual,
+        },
         code: fundo,
         qtdQuotaNecessaria: qtdQuota,
-        precoQuota: precoQuota,
+        precoMedioQuota: precoMedioQuota,
         rendimentoMensal: rendimentoMensal,
         valorMinimoAceitavel: valorMinimoAceitavel,
         ...segmento,
@@ -103,8 +128,11 @@ for (const fundo in fundos) {
 await writeFileSync(
   "output.json",
   JSON.stringify(
-    _.orderBy(ticker, "rendimentoMensal", "asc").filter(
-      o => o.rendimentoMensal >= valorMinimoAceitavel
+    _.groupBy(
+      _.orderBy(ticker, "rendimentoMensal", "asc").filter(
+        o => o.rendimentoMensal >= valorMinimoAceitavel
+      ),
+      "Segmento"
     )
   )
 );
