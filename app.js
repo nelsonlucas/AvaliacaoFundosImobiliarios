@@ -1,12 +1,13 @@
 import axios from "axios";
 import { writeFileSync } from "fs";
 import _ from "lodash";
+import moment from "moment";
 import querystring from "querystring";
 import stats from "wink-statistics";
 import { getSegmentoTicker } from "./scraping/statusInvest.js";
 
-let startDate = "2021-03-01";
-let endDate = "2022-04-26";
+let startDate = moment().subtract(1, "y").format("YYYY-MM-DD");
+let endDate = moment().format("YYYY-MM-DD");
 let indiceCode = "";
 let filter = "";
 
@@ -40,87 +41,95 @@ let valorMinimoAceitavel = parseFloat(
 
 let ticker = [];
 for (const fundo in fundos) {
-  console.log(`Pesquisando codigo ${fundo}`);
+  if (fundo) {
+    console.log(`Pesquisando codigo ${fundo}`);
 
-  let result = await axios.post(
-    "https://statusinvest.com.br/fii/tickerprice",
-    querystring.stringify({
-      ticker: fundo,
-      type: "1",
-    }),
-    {
-      headers: {
-        Accept: "application/json",
-      },
-    }
-  );
-
-  // so ira calcular se existir no minimo 12 meses de pagamento
-  if (fundos[fundo].length >= 12 && result?.data?.[0]?.prices.length > 0) {
-    //
-
-    // array tratado e com determinaods valores convertidos
-    let fundoTratado = fundos[fundo].map(o => {
-      o.dy = parseFloat(o.dy.replace(",", "."));
-      o.resultAbsoluteValue = parseFloat(
-        o.resultAbsoluteValue.replace(",", ".")
-      );
-      return o;
-    });
-
-    //   recupera sempre o ultimo preco salvo
-    // let precoQuota = result?.data?.[0]?.prices?.[0]?.price;
-    let precoMedioQuota = parseFloat(
-      parseFloat(stats.data.mean(result.data?.[0]?.prices, "price")).toFixed(2)
+    let result = await axios.post(
+      "https://statusinvest.com.br/fii/tickerprice",
+      querystring.stringify({
+        ticker: fundo,
+        type: "1",
+      }),
+      {
+        headers: {
+          Accept: "application/json",
+        },
+      }
     );
 
-    if (precoMedioQuota) {
+    // so ira calcular se existir no minimo 12 meses de pagamento
+    if (fundos[fundo].length >= 12 && result?.data?.[0]?.prices.length > 0) {
       //
 
-      // recebe o valor do preco medio
-      let vlrMedioRendimentoAbsoluto = parseFloat(
-        parseFloat(
-          stats.data.mean(fundoTratado, "resultAbsoluteValue")
-        ).toFixed(2)
-      );
-
-      let valorMedioDY = parseFloat(
-        parseFloat(stats.data.mean(fundoTratado, "dy")).toFixed(2)
-      );
-
-      // Calcular qtd de quotas e possivel adquirir com o saldo bancario. O arredondamento sera sempre para BAIXO
-      let qtdQuota = Math.floor(saldoInvestimento / precoMedioQuota);
-
-      // calcula o preco justo por Acao de acordo com o DY medio
-      let precoMedioJustoPorQuota = Math.floor(
-        precoMedioQuota - valorMedioDY / 100
-      );
-
-      // calculo de percentual de preco justo com relacao ao preco atual
-      let variacaoPercentualPrecoJustoPorPrecoAtual = parseFloat(
-        (precoMedioQuota - precoMedioJustoPorQuota).toFixed(2)
-      );
-
-      // valor rendimento mensal baseado na media
-      let rendimentoMensal = Math.floor(qtdQuota * vlrMedioRendimentoAbsoluto);
-
-      // realiza o scraping para capturar os dados do segmento do ativo
-      let segmento = await getSegmentoTicker(fundo);
-
-      ticker.push({
-        detalhesFundamentalistas: {
-          valorMedioDY: valorMedioDY,
-          precoMedioJustoPorQuota: precoMedioJustoPorQuota,
-          variacaoPercentualPrecoJustoPorPrecoAtual:
-            variacaoPercentualPrecoJustoPorPrecoAtual,
-        },
-        code: fundo,
-        qtdQuotaNecessaria: qtdQuota,
-        precoMedioQuota: precoMedioQuota,
-        rendimentoMensal: rendimentoMensal,
-        valorMinimoAceitavel: valorMinimoAceitavel,
-        ...segmento,
+      // array tratado e com determinaods valores convertidos
+      let fundoTratado = fundos[fundo].map((o) => {
+        o.dy = parseFloat(o.dy.replace(",", "."));
+        o.resultAbsoluteValue = parseFloat(
+          o.resultAbsoluteValue.replace(",", ".")
+        );
+        return o;
       });
+
+      //   recupera sempre o ultimo preco salvo
+      // let precoQuota = result?.data?.[0]?.prices?.[0]?.price;
+      let precoMedioQuota = parseFloat(
+        parseFloat(stats.data.mean(result.data?.[0]?.prices, "price")).toFixed(
+          2
+        )
+      );
+
+      if (precoMedioQuota) {
+        //
+
+        // recebe o valor do preco medio
+        let vlrMedioRendimentoAbsoluto = parseFloat(
+          parseFloat(
+            stats.data.mean(fundoTratado, "resultAbsoluteValue")
+          ).toFixed(2)
+        );
+
+        let valorMedioDY = parseFloat(
+          parseFloat(stats.data.mean(fundoTratado, "dy")).toFixed(2)
+        );
+
+        // Calcular qtd de quotas e possivel adquirir com o saldo bancario. O arredondamento sera sempre para BAIXO
+        let qtdQuota = Math.floor(saldoInvestimento / precoMedioQuota);
+
+        // calcula o preco justo por Acao de acordo com o DY medio
+        let precoMedioJustoPorQuota = Math.floor(
+          precoMedioQuota - valorMedioDY / 100
+        );
+
+        // calculo de percentual de preco justo com relacao ao preco atual
+        let variacaoPercentualPrecoJustoPorPrecoAtual = parseFloat(
+          (precoMedioQuota - precoMedioJustoPorQuota).toFixed(2)
+        );
+
+        // valor rendimento mensal baseado na media
+        let rendimentoMensal = Math.floor(
+          qtdQuota * vlrMedioRendimentoAbsoluto
+        );
+
+        // realiza o scraping para capturar os dados do segmento do ativo
+        let segmento = await getSegmentoTicker(fundo);
+
+        segmento.Segmento = segmento.Segmento.trim();
+
+        ticker.push({
+          detalhesFundamentalistas: {
+            valorMedioDY: valorMedioDY,
+            precoMedioJustoPorQuota: precoMedioJustoPorQuota,
+            variacaoPercentualPrecoJustoPorPrecoAtual:
+              variacaoPercentualPrecoJustoPorPrecoAtual,
+          },
+          code: fundo,
+          qtdQuotaNecessaria: qtdQuota,
+          precoMedioQuota: precoMedioQuota,
+          rendimentoMensal: rendimentoMensal,
+          valorMinimoAceitavel: valorMinimoAceitavel,
+          ...segmento,
+        });
+      }
     }
   }
 }
@@ -130,7 +139,7 @@ await writeFileSync(
   JSON.stringify(
     _.groupBy(
       _.orderBy(ticker, "rendimentoMensal", "asc").filter(
-        o => o.rendimentoMensal >= valorMinimoAceitavel
+        (o) => o.rendimentoMensal >= valorMinimoAceitavel
       ),
       "Segmento"
     )
